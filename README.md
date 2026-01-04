@@ -2,6 +2,8 @@
 
 一个用于解密网易云音乐 NCM 格式文件的 Android 应用。
 
+注意：应用还处于早期开发阶段，预计还将进行大量改动（包括更改包名）
+
 ## 特性
 
 - ✅ 选择输入文件夹，批量处理所有 NCM 文件
@@ -47,6 +49,10 @@ lib/
 - **pointycastle** - 纯 Dart AES 加密库
 - **file_picker** - 文件/目录选择
 
+## 版权声明
+
+本项目中 .ncm 文件相关处理逻辑改写自开源项目 [ncmpp](https://github.com/Majjcom/ncmpp)
+
 ## 许可证
 
-遵循原 ncmpp 项目许可证。
+同原 ncmpp 项目，遵循 MIT 许可证。
