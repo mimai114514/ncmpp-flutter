@@ -30,17 +30,17 @@
 
 WIP
 
-## 和 [ncmcppGui](https://github.com/Majjcom/ncmppGui) 的对比
+## 和 [ncmppGui](https://github.com/Majjcom/ncmppGui) 的对比
 
-本项目使用 Flutter 框架，相比 ncmcppGui，本项目具有以下优势：
+本项目使用 Flutter 框架，相比 ncmppGui，本项目具有以下优势：
 
 - 现代的 Material Design 3 界面
 - 支持暗色模式
 - 使用**原生 File Picker**，选取文件夹的效率大幅提高
 
-*btw，ncmcppGui使用的Qt的路径选择器太难用是我开发这个应用的直接诱因*
+*btw，ncmppGui使用的Qt的路径选择器太难用是我开发这个应用的直接诱因*
 
-同时，目前版本的 ncmcovnverter 的性能在体感上和 ncmcppGui 仍有差距，具体的差距有待测试
+同时，目前版本的 ncmcovnverter 的性能在体感上和 ncmppGui 仍有差距，具体的差距有待测试
 
 ## 技术栈
 
