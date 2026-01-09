@@ -40,9 +40,25 @@ class ProgressCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  '${completed + failed} / $total',
-                  style: theme.textTheme.bodyMedium,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildStatItem(
+                      context,
+                      icon: Icons.check_circle,
+                      label: '成功',
+                      value: completed,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildStatItem(
+                      context,
+                      icon: Icons.error,
+                      label: '失败',
+                      value: failed,
+                      color: Colors.red,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -52,47 +68,25 @@ class ProgressCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: isProcessing ? progress : (total > 0 ? 1.0 : 0),
+                value: progress,
                 minHeight: 8,
                 backgroundColor: theme.colorScheme.surfaceContainerLow,
               ),
             ),
-            const SizedBox(height: 12),
 
-            // 统计信息
-            Row(
-              children: [
-                _buildStatItem(
-                  context,
-                  icon: Icons.check_circle,
-                  label: '成功',
-                  value: completed,
-                  color: Colors.green,
-                ),
-                const SizedBox(width: 24),
-                _buildStatItem(
-                  context,
-                  icon: Icons.error,
-                  label: '失败',
-                  value: failed,
-                  color: Colors.red,
-                ),
-                const Spacer(),
-                if (currentFile != null && isProcessing)
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      currentFile!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                    ),
+            // 当前处理文件
+            if (currentFile != null && isProcessing)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  currentFile!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
                   ),
-              ],
-            ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
           ],
         ),
       ),

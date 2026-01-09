@@ -1,11 +1,15 @@
 /// 主界面
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../ffi/ncm_decoder.dart';
 import '../models/ncm_file.dart';
+import '../services/settings_service.dart';
 import '../../widgets/progress_card.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,8 +37,14 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: theme.colorScheme.inversePrimary,
         actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: _showAboutDialog,
+            icon: const Icon(Icons.settings),
+            tooltip: '设置',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -43,23 +53,47 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 输入目录选择卡片
-            _buildDirectoryCard(
-              title: '输入目录',
-              subtitle: _inputDir ?? '请选择包含 NCM 文件的文件夹',
-              icon: Icons.folder_open,
-              onTap: _isProcessing ? null : _selectInputDirectory,
-              color: theme.colorScheme.primaryContainer,
-            ),
-            const SizedBox(height: 12),
+            // 目录选择 - 响应式布局
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // 宽度大于 600 时并排显示
+                final isWide = constraints.maxWidth > 600;
 
-            // 输出目录选择卡片
-            _buildDirectoryCard(
-              title: '输出目录',
-              subtitle: _outputDir ?? '请选择解密后文件的保存位置',
-              icon: Icons.folder_copy,
-              onTap: _isProcessing ? null : _selectOutputDirectory,
-              color: theme.colorScheme.secondaryContainer,
+                final inputCard = _buildDirectoryCard(
+                  title: '输入目录',
+                  subtitle: _inputDir ?? '请选择包含 NCM 文件的文件夹',
+                  icon: Icons.folder_open,
+                  onTap: _isProcessing ? null : _selectInputDirectory,
+                  color: theme.colorScheme.primaryContainer,
+                );
+
+                final outputCard = _buildDirectoryCard(
+                  title: '输出目录',
+                  subtitle: _outputDir ?? '请选择解密后文件的保存位置',
+                  icon: Icons.folder_copy,
+                  onTap: _isProcessing ? null : _selectOutputDirectory,
+                  color: theme.colorScheme.secondaryContainer,
+                );
+
+                if (isWide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: inputCard),
+                      const SizedBox(width: 12),
+                      Expanded(child: outputCard),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      inputCard,
+                      const SizedBox(height: 12),
+                      outputCard,
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 16),
 
@@ -304,11 +338,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
+    // 开始计时
+    final stopwatch = Stopwatch()..start();
+
     final decoder = NcmDecoder.instance;
 
     await for (final progress in decoder.decodeDirectory(
       inputDir: _inputDir!,
       outputDir: _outputDir!,
+      concurrency: SettingsService.instance.threadCount,
       onFileComplete: (result) {
         // 更新文件状态
         final index = _files.indexWhere((f) => f.path == result.inputPath);
@@ -345,22 +383,139 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentFile = null;
     });
 
-    _showSnackBar('解密完成！成功: $_completed，失败: $_failed');
+    // 停止计时并显示完成对话框
+    stopwatch.stop();
+    final elapsedSeconds = stopwatch.elapsed.inSeconds;
+    if (mounted) {
+      _showCompletionDialog(elapsedSeconds);
+    }
+  }
+
+  /// 显示解密完成对话框
+  void _showCompletionDialog(int elapsedSeconds) {
+    bool deleteSourceFiles = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('转换完成'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$_completed 成功，$_failed 失败，耗时 ${elapsedSeconds}s'),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                value: deleteSourceFiles,
+                onChanged: (value) {
+                  setDialogState(() {
+                    deleteSourceFiles = value ?? false;
+                  });
+                },
+                title: const Text('删除转换成功的 .ncm 文件'),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                if (deleteSourceFiles) {
+                  await _deleteSuccessfulSourceFiles();
+                }
+                await _openMusicTagEditor();
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('打开音乐标签'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (deleteSourceFiles) {
+                  await _deleteSuccessfulSourceFiles();
+                }
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('完成'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 删除转换成功的源文件
+  Future<void> _deleteSuccessfulSourceFiles() async {
+    int deletedCount = 0;
+    for (final file in _files) {
+      if (file.status == NcmFileStatus.success) {
+        try {
+          final sourceFile = File(file.path);
+          if (await sourceFile.exists()) {
+            await sourceFile.delete();
+            deletedCount++;
+          }
+        } catch (e) {
+          debugPrint('[删除文件] 失败: ${file.path}, 错误: $e');
+        }
+      }
+    }
+    debugPrint('[删除文件] 已删除 $deletedCount 个文件');
+    if (mounted) {
+      _showSnackBar('已删除 $deletedCount 个源文件');
+    }
+  }
+
+  /// 打开音乐标签编辑器应用
+  Future<void> _openMusicTagEditor() async {
+    const packageName = 'com.xjcheng.musictageditor';
+    final uri = Uri.parse('android-app://$packageName');
+
+    try {
+      // 尝试使用 android-app scheme 打开
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      // 如果无法打开，显示失败对话框
+      if (mounted) {
+        _showOpenAppFailedDialog();
+      }
+    } catch (e) {
+      debugPrint('[打开应用] 失败: $e');
+      if (mounted) {
+        _showOpenAppFailedDialog();
+      }
+    }
+  }
+
+  /// 显示打开应用失败的对话框
+  void _showOpenAppFailedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('打开失败'),
+        content: const Text('无法打开音乐标签应用，请确认已安装该应用。'),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _showAboutDialog() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'NCM 解密器',
-      applicationVersion: '1.0.0',
-      applicationLegalese: '© 2026 NCM Decoder',
-      children: [const SizedBox(height: 16), const Text('一个用于解密 NCM 音乐文件的工具。')],
-    );
   }
 }

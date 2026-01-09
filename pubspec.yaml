@@ -43,6 +43,12 @@ dependencies:
   
   # 权限处理
   permission_handler: ^11.3.0
+  
+  # 本地存储（用于设置持久化）
+  shared_preferences: ^2.2.2
+  
+  # 打开外部应用/链接
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:

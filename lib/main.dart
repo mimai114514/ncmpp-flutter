@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'src/screens/home_screen.dart';
+import 'src/services/settings_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SettingsService.instance.init();
   runApp(const NcmppApp());
 }
 

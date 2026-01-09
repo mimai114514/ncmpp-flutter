@@ -120,9 +120,11 @@ class NcmDecoder {
 
   /// 批量解密目录中的所有 NCM 文件
   /// 返回一个 Stream，可以监听进度和结果
+  /// [concurrency] 参数指定并行解密的数量，默认为1（顺序执行）
   Stream<BatchDecodeProgress> decodeDirectory({
     required String inputDir,
     required String outputDir,
+    int concurrency = 1,
     void Function(DecodeResult)? onFileComplete,
   }) async* {
     // 扫描所有 NCM 文件
@@ -142,44 +144,81 @@ class NcmDecoder {
       await outDir.create(recursive: true);
     }
 
-    // 依次解密每个文件
-    for (final filePath in files) {
-      final fileName = filePath.split(Platform.pathSeparator).last;
+    // 限制并发数在合理范围内
+    final effectiveConcurrency = concurrency.clamp(1, 16);
+    debugPrint('[NCM解密] 使用 $effectiveConcurrency 个并行任务');
 
-      yield BatchDecodeProgress(
-        total: total,
-        completed: completed,
-        failed: failed,
-        currentFile: fileName,
+    // 使用 StreamController 来汇报进度
+    final progressController = StreamController<BatchDecodeProgress>();
+
+    // 当前正在处理的文件名
+    String? currentFileName;
+
+    // 并行处理逻辑
+    () async {
+      // 创建任务队列
+      final futures = <Future<void>>[];
+      var fileIndex = 0;
+
+      // 处理单个文件的函数
+      Future<void> processOne() async {
+        while (fileIndex < files.length) {
+          final idx = fileIndex++;
+          final filePath = files[idx];
+          final fileName = filePath.split(Platform.pathSeparator).last;
+
+          currentFileName = fileName;
+          progressController.add(
+            BatchDecodeProgress(
+              total: total,
+              completed: completed,
+              failed: failed,
+              currentFile: currentFileName,
+            ),
+          );
+
+          try {
+            final result = await decodeFile(filePath, outputDir);
+            if (result.success) {
+              completed++;
+            } else {
+              failed++;
+            }
+            onFileComplete?.call(result);
+          } catch (e) {
+            failed++;
+            onFileComplete?.call(
+              DecodeResult(
+                inputPath: filePath,
+                outputPath: '',
+                success: false,
+                errorMessage: e.toString(),
+              ),
+            );
+          }
+        }
+      }
+
+      // 启动并发worker
+      for (var i = 0; i < effectiveConcurrency; i++) {
+        futures.add(processOne());
+      }
+
+      // 等待所有worker完成
+      await Future.wait(futures);
+
+      // 发送最终进度
+      progressController.add(
+        BatchDecodeProgress(total: total, completed: completed, failed: failed),
       );
 
-      try {
-        final result = await decodeFile(filePath, outputDir);
-        if (result.success) {
-          completed++;
-        } else {
-          failed++;
-        }
-        onFileComplete?.call(result);
-      } catch (e) {
-        failed++;
-        onFileComplete?.call(
-          DecodeResult(
-            inputPath: filePath,
-            outputPath: '',
-            success: false,
-            errorMessage: e.toString(),
-          ),
-        );
-      }
-    }
+      await progressController.close();
+    }();
 
-    // 最终状态
-    yield BatchDecodeProgress(
-      total: total,
-      completed: completed,
-      failed: failed,
-    );
+    // 转发进度事件
+    await for (final progress in progressController.stream) {
+      yield progress;
+    }
   }
 
   /// 获取版本
