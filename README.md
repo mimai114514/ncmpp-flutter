@@ -40,7 +40,7 @@ WIP
 
 *btw，ncmppGui使用的Qt的路径选择器太难用是我开发这个应用的直接诱因*
 
-同时，目前版本的 ncmcovnverter 的性能在体感上和 ncmppGui 仍有差距，具体的差距有待测试
+同时，目前版本的 ncmconverter 的性能在体感上和 ncmppGui 仍有差距，具体的差距有待测试
 
 ## 技术栈
 
