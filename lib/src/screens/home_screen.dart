@@ -180,27 +180,50 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Card(
-      child: ListView.builder(
-        itemCount: _files.length,
-        itemBuilder: (context, index) {
-          final file = _files[index];
-          return ListTile(
-            leading: _buildStatusIcon(file.status),
-            title: Text(
-              file.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: file.errorMessage != null
-                ? Text(
-                    file.errorMessage!,
-                    style: const TextStyle(color: Colors.red),
-                    maxLines: 1,
-                  )
-                : null,
-          );
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 宽度大于 600 时显示双列（与目录选择卡片判定条件一致）
+          final isWide = constraints.maxWidth > 600;
+
+          if (isWide) {
+            // 双列布局
+            return GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 4.5, // 调整每个项目的宽高比
+                crossAxisSpacing: 0,
+                mainAxisSpacing: 0,
+              ),
+              itemCount: _files.length,
+              itemBuilder: (context, index) =>
+                  _buildFileListItem(_files[index]),
+            );
+          } else {
+            // 单列布局
+            return ListView.builder(
+              itemCount: _files.length,
+              itemBuilder: (context, index) =>
+                  _buildFileListItem(_files[index]),
+            );
+          }
         },
       ),
+    );
+  }
+
+  /// 构建文件列表项
+  Widget _buildFileListItem(NcmFile file) {
+    return ListTile(
+      leading: _buildStatusIcon(file.status),
+      title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: file.errorMessage != null
+          ? Text(
+              file.errorMessage!,
+              style: const TextStyle(color: Colors.red),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          : null,
     );
   }
 

@@ -89,7 +89,7 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.ncmpp" "\0"
+            VALUE "CompanyName", "io.github.mimai114514" "\0"
             VALUE "FileDescription", "ncmpp_flutter" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "ncmpp_flutter" "\0"

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ncmpp.ncmpp_flutter"
+    namespace = "io.github.mimai114514.ncmconverter"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.ncmpp.ncmpp_flutter"
+        applicationId = "io.github.mimai114514.ncmconverter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24  // Android 7.0
