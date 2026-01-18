@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../core/ncm_dump.dart';
 import 'isolate_pool.dart';
+import 'settings_service.dart';
 
 /// 解密结果
 class DecodeResult {
@@ -86,16 +87,30 @@ class NcmDecoder {
 
   /// 解密单个文件（在后台 Isolate 执行）
   /// [useStreaming] 是否使用流式解密，默认 true（减少内存占用）
+  /// [bufferSize] 缓冲区大小（字节），默认从设置读取
+  /// [flushInterval] 刷新间隔（每 N 块刷新），默认从设置读取
   Future<DecodeResult> decodeFile(
     String inputPath,
     String outputDir, {
     bool useStreaming = true,
+    int? bufferSize,
+    int? flushInterval,
   }) async {
+    // 从设置服务读取默认值
+    final effectiveBufferSize = bufferSize ?? 262144; // 256KB 默认值
+    final effectiveFlushInterval = flushInterval ?? 8;
+
     if (_usePool) {
       // 使用 Isolate 池
       _pool ??= IsolatePool(maxSize: 32);
       final result = await _pool!.runDecode(
-        DecodeTask(inputPath, outputDir, useStreaming: useStreaming),
+        DecodeTask(
+          inputPath,
+          outputDir,
+          useStreaming: useStreaming,
+          bufferSize: effectiveBufferSize,
+          flushInterval: effectiveFlushInterval,
+        ),
       );
       return DecodeResult.fromTaskResult(result);
     } else {
@@ -104,6 +119,8 @@ class NcmDecoder {
         inputPath,
         outputDir,
         useStreaming.toString(),
+        effectiveBufferSize.toString(),
+        effectiveFlushInterval.toString(),
       ]);
       return result;
     }
@@ -169,10 +186,14 @@ class NcmDecoder {
   /// 批量解密目录中的所有 NCM 文件
   /// 返回一个 Stream，可以监听进度和结果
   /// [concurrency] 参数指定并行解密的数量，默认为1（顺序执行）
+  /// [bufferSize] 缓冲区大小（字节），默认从设置读取
+  /// [flushInterval] 刷新间隔（每 N 块刷新），默认从设置读取
   Stream<BatchDecodeProgress> decodeDirectory({
     required String inputDir,
     required String outputDir,
     int concurrency = 1,
+    int? bufferSize,
+    int? flushInterval,
     void Function(DecodeResult)? onFileComplete,
   }) async* {
     // 扫描所有 NCM 文件
@@ -194,7 +215,16 @@ class NcmDecoder {
 
     // 限制并发数在合理范围内
     final effectiveConcurrency = concurrency.clamp(1, 32);
-    debugPrint('[NCM解密] 使用 $effectiveConcurrency 个并行任务');
+    debugPrint('[解密服务] 使用 $effectiveConcurrency 个并行任务');
+
+    // 从设置服务读取缓冲区参数
+    final effectiveBufferSize =
+        bufferSize ?? SettingsService.instance.bufferSize;
+    final effectiveFlushInterval =
+        flushInterval ?? SettingsService.instance.flushInterval;
+    debugPrint(
+      '[解密服务] 缓冲区: ${effectiveBufferSize ~/ 1024}KB, 刷新间隔: 每 $effectiveFlushInterval 块',
+    );
 
     // 预热 Isolate 池
     if (_usePool) {
@@ -231,7 +261,12 @@ class NcmDecoder {
           );
 
           try {
-            final result = await decodeFile(filePath, outputDir);
+            final result = await decodeFile(
+              filePath,
+              outputDir,
+              bufferSize: effectiveBufferSize,
+              flushInterval: effectiveFlushInterval,
+            );
             if (result.success) {
               completed++;
             } else {
@@ -283,10 +318,17 @@ Future<DecodeResult> _decodeInIsolate(List<String> args) async {
   final inputPath = args[0];
   final outputDir = args[1];
   final useStreaming = args.length > 2 ? args[2] == 'true' : true;
+  final bufferSize = args.length > 3 ? int.tryParse(args[3]) ?? 262144 : 262144;
+  final flushInterval = args.length > 4 ? int.tryParse(args[4]) ?? 8 : 8;
 
   final ncmDump = NcmDump();
   final (success, outputPath, errorMessage) = useStreaming
-      ? await ncmDump.decodeStreaming(inputPath, outputDir)
+      ? await ncmDump.decodeStreaming(
+          inputPath,
+          outputDir,
+          bufferSize: bufferSize,
+          flushInterval: flushInterval,
+        )
       : await ncmDump.decode(inputPath, outputDir);
 
   return DecodeResult(

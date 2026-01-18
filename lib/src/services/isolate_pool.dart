@@ -12,8 +12,16 @@ class DecodeTask {
   final String inputPath;
   final String outputDir;
   final bool useStreaming;
+  final int bufferSize;
+  final int flushInterval;
 
-  DecodeTask(this.inputPath, this.outputDir, {this.useStreaming = true});
+  DecodeTask(
+    this.inputPath,
+    this.outputDir, {
+    this.useStreaming = true,
+    this.bufferSize = 262144, // 256KB 默认值
+    this.flushInterval = 8, // 每 8 块刷新一次
+  });
 }
 
 /// 解密任务结果
@@ -232,7 +240,12 @@ void _isolateEntry(SendPort mainSendPort) {
 
       // 根据任务参数选择解密方式
       final (success, outputPath, errorMessage) = task.useStreaming
-          ? await ncmDump.decodeStreaming(task.inputPath, task.outputDir)
+          ? await ncmDump.decodeStreaming(
+              task.inputPath,
+              task.outputDir,
+              bufferSize: task.bufferSize,
+              flushInterval: task.flushInterval,
+            )
           : await ncmDump.decode(task.inputPath, task.outputDir);
 
       resultPort!.send(

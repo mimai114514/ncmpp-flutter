@@ -126,11 +126,14 @@ class NcmDump {
 
   /// 流式解密 NCM 文件
   /// 使用流式 I/O 减少内存占用，适合大文件
+  /// [bufferSize] 缓冲区大小，默认 64KB
+  /// [flushInterval] 刷新间隔，每 N 个块刷新一次，默认 8
   /// 返回 (成功, 输出路径, 错误信息)
   Future<(bool, String, String?)> decodeStreaming(
     String inputPath,
     String outputDir, {
     int bufferSize = 65536, // 64KB 缓冲区
+    int flushInterval = 8, // 每 8 块刷新一次
   }) async {
     RandomAccessFile? raf;
     IOSink? outputSink;
@@ -234,6 +237,7 @@ class NcmDump {
       final buffer = Uint8List(bufferSize);
       var globalOffset = 0;
       var remaining = audioLength;
+      var chunkCount = 0; // 块计数器
 
       while (remaining > 0) {
         final toRead = remaining > bufferSize ? bufferSize : remaining;
@@ -253,6 +257,12 @@ class NcmDump {
 
         globalOffset += bytesRead;
         remaining -= bytesRead;
+        chunkCount++;
+
+        // 定期刷新以防止内存累积
+        if (chunkCount % flushInterval == 0) {
+          await outputSink.flush();
+        }
       }
 
       // 刷新并关闭

@@ -72,3 +72,4 @@ crash_log.txt
 *.stackdump
 
 build-apk.lnk
+devtools_options.yaml
